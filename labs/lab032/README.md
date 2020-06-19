@@ -609,4 +609,4 @@ Approximate round trip times in milli-seconds:
 
 Лабораторная работа выполнена с использованием Cisco Paket Tracer 7.3.0
 
-1. ["Поиск и устранение неполадок в работе EtherChannel"](3.2.troubleshooting_etherchannel).
+1. ["Поиск и устранение неполадок в работе EtherChannel"](3.2.troubleshooting_etherchannel.pkt).
