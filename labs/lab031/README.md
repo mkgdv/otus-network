@@ -1,6 +1,6 @@
 # Настройка EtherChannel
 
-![topology](topology.jpg)
+![topology](topology.jpeg)
 
 ### Настроим базовые параметры каждого коммутатора.
 
