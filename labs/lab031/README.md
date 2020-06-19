@@ -1,6 +1,9 @@
 # Настройка EtherChannel
 
+![topology](topology.jpg)
+
 ### Настроим базовые параметры каждого коммутатора.
+
 ```
 Switch(config)#no ip domain-lookup
 Switch(config)#hostname S1
