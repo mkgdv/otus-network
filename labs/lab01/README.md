@@ -1,385 +1,357 @@
-# Настройка расширенных сетей VLAN, VTP и DTP.
+# Configure Router-on-a-Stick Inter-VLAN Routing
+
+![topology](topology.jpg)
 
 Таблица адресации
 
-| Заголовок таблицы | Интерфейс | IP-адрес      | Маска подсети          |
-|-------------------|-----------|---------------|------------------------|
-| S1   | VLAN 99 | 192.168.99.1 | 255.255.255.0 |
-| S2   | VLAN 99 | 192.168.99.2 | 255.255.255.0 |  
-| S3   | VLAN 99 | 192.168.99.3 | 255.255.255.0 |
-| PC-A | NIC | 192.168.10.1     | 255.255.255.0 |
-| PC-B | NIC | 192.168.20.1     | 255.255.255.0 |
-| PC-C | NIC | 192.168.10.2     | 255.255.255.0 |
+| Устройство | Интерфейс | IP-адрес      | Маска подсети          | Основной шлюз |
+|-------------------|-----------|---------------|------------------------|-------------------|
+| R1 | G0/0/1.3 | 192.168.3.1 | 255.255.255.0 | N/A |
+|    | G0/0/1.4  | 192.168.4.1 | 255.255.255.0 | N/A |
+|    | G0/0/1.8 | N/A | N/A | N/A |
+| S1         | VLAN 3    | 192.168.3.11 | 255.255.255.0 | 192.168.3.1 |
+| S2         | VLAN 3    | 192.168.3.12 | 255.255.255.0 | 192.168.3.1 |
+| PC-A       | NIC       | 192.168.3.3  | 255.255.255.0 | 192.168.3.1   |
+| PC-B       | NIC       | 192.168.4.3  | 255.255.255.0 | 192.168.4.1   |
 
-Настроим S1 и S3 в качестве клиентов VTP в домене CCNA  
-Проверим настроенные конфигурации VTP:
-```
-S1#show vtp status
-VTP Version                     : 2
-Configuration Revision          : 0
-Maximum VLANs supported locally : 255
-Number of existing VLANs        : 9
-VTP Operating Mode              : Client
-VTP Domain Name                 : CCNA
-VTP Pruning Mode                : Disabled
-VTP V2 Mode                     : Disabled
-VTP Traps Generation            : Disabled
-MD5 digest                      : 0x2C 0x37 0x65 0x0B 0x17 0x6F 0x80 0xED
-Configuration last modified by 0.0.0.0 at 3-1-93 00:57:10
+Таблица VLAN'ов в соответствии с нашей топологией
 
-S2#show vtp status
-VTP Version                     : 2
-Configuration Revision          : 8
-Maximum VLANs supported locally : 255
-Number of existing VLANs        : 9
-VTP Operating Mode              : Server
-VTP Domain Name                 : CCNA
-VTP Pruning Mode                : Disabled
-VTP V2 Mode                     : Disabled
-VTP Traps Generation            : Disabled
-MD5 digest                      : 0x6A 0xAC 0x73 0x30 0x7D 0x27 0xCC 0x62 
-Configuration last modified by 0.0.0.0 at 3-1-93 00:57:10
-Local updater ID is 192.168.99.2 on interface Vl20 (lowest numbered VLAN interface found)
+| VLAN | Имя        | Назначенный интерфейс                                        |
+| ---- | ---------- | ------------------------------------------------------------ |
+| 3    | Management | S1: VLAN 3 <br />S2: VLAN 3 <br />S1: F0/6                   |
+| 4    | Operations | S2: F0/18                                                    |
+| 7    | ParkingLot | S1: F0/2-4, F0/7-24, G0/1-2<br/>S2: F0/2-17, F0/19-24, G0/1-2 |
+| 8    | Native     | N/A                                                          |
 
-S3#show vtp status
-VTP Version                     : 2
-Configuration Revision          : 8
-Maximum VLANs supported locally : 255
-Number of existing VLANs        : 9
-VTP Operating Mode              : Client
-VTP Domain Name                 : CCNA
-VTP Pruning Mode                : Disabled
-VTP V2 Mode                     : Disabled
-VTP Traps Generation            : Disabled
-MD5 digest                      : 0x6A 0xAC 0x73 0x30 0x7D 0x27 0xCC 0x62
-Configuration last modified by 0.0.0.0 at 3-1-93 00:57:10
-```
-### Настроим динамические магистральные каналы между S1 и S2
-Проверим административный и оперативный режим у коммутационного порта f0/1 на S1 и S2
+### Построим сеть и настроим оборудование согласно условиям
+
+Войдём в привелигированный режим командой ``enable``. Далее перейдём в режим кофигурирования при помощи команды ``configure terminal``. Присвоим устройству имя командой ``hostname %%name%%``. Отключим DNS lookup, чтобы устройство при ввод е некорректных комманд не пыталось найти устройство с таким именем в сети, это делается командой ``no ip domain-lookup``. Установим пароль на привелигированный режим: ``enable secret class``.  
+
+Установим пароль на доступ к консольному режиму:
 
 ```
-S1#show interfaces f0/1 switchport 
-Name: Fa0/1
-Switchport: Enabled
-Administrative Mode: dynamic auto
-Operational Mode: trunk
-Administrative Trunking Encapsulation: dot1q
-Operational Trunking Encapsulation: dot1q
-Negotiation of Trunking: On
-Access Mode VLAN: 1 (default)
-Trunking Native Mode VLAN: 1 (default)
-Voice VLAN: none
-Administrative private-vlan host-association: none
-Administrative private-vlan mapping: none
-Administrative private-vlan trunk native VLAN: none
-Administrative private-vlan trunk encapsulation: dot1q
-Administrative private-vlan trunk normal VLANs: none
-Administrative private-vlan trunk private VLANs: none
-Operational private-vlan: none
-Trunking VLANs Enabled: All
-Pruning VLANs Enabled: 2-1001
-Capture Mode Disabled
-Capture VLANs Allowed: ALL
-Protected: false
-Unknown unicast blocked: disabled
-Unknown multicast blocked: disabled
-Appliance trust: none
-
-S2#show interfaces f0/1 switchport 
-Name: Fa0/1
-Switchport: Enabled
-Administrative Mode: dynamic auto
-Operational Mode: trunk
-Administrative Trunking Encapsulation: dot1q
-Operational Trunking Encapsulation: dot1q
-Negotiation of Trunking: On
-Access Mode VLAN: 1 (default)
-Trunking Native Mode VLAN: 1 (default)
-Voice VLAN: none
-Administrative private-vlan host-association: none
-Administrative private-vlan mapping: none
-Administrative private-vlan trunk native VLAN: none
-Administrative private-vlan trunk encapsulation: dot1q
-Administrative private-vlan trunk normal VLANs: none
-Administrative private-vlan trunk private VLANs: none
-Operational private-vlan: none
-Trunking VLANs Enabled: All
-Pruning VLANs Enabled: 2-1001
-Capture Mode Disabled
-Capture VLANs Allowed: ALL
-Protected: false
-Unknown unicast blocked: disabled
-Unknown multicast blocked: disabled
-Appliance trust: none
-```
-Проверим магистральный канал между коммутаторами S1 и S2
-```
-S1#show interfaces trunk
-Port        Mode             Encapsulation  Status        Native vlan
-Fa0/1       desirable        802.1q         trunking      1
-
-Port        Vlans allowed on trunk
-Fa0/1       1-1005
-
-Port        Vlans allowed and active in management domain
-Fa0/1       1
-
-S2#show interfaces trunk
-Port        Mode             Encapsulation  Status        Native vlan
-Fa0/1       auto             802.1q         trunking      1
-
-Port        Vlans allowed on trunk
-Fa0/1       1-1005
-
-Port        Vlans allowed and active in management domain
-Fa0/1       1
-
-Port        Vlans in spanning tree forwarding state and not pruned
-Fa0/1       1
-
-
+S1(config)#line con 0
+S1(config-line)#password cisco
+S1(config-line)#login
 ```
 
-Настроим статический магистральный канал между S1 и S3 и снова проверим его командой show interfaces trunk
+Как мы можем убедиться, данный пароль хранится в открытом виде в файле конфигурации.
+
 ```
-S1#show interfaces trunk
-Port        Mode         Encapsulation  Status        Native vlan
-Fa0/1       desirable    n-802.1q       trunking      1
-Fa0/3       on           802.1q         trunking      1
-
-Port        Vlans allowed on trunk
-Fa0/1       1-1005
-Fa0/3       1-1005
-
-Port        Vlans allowed and active in management domain
-Fa0/1       1
-Fa0/3       1
-
-Port        Vlans in spanning tree forwarding state and not pruned
-Fa0/1       none
-Fa0/3       none
-
-S2#show interfaces trunk
-Port        Mode         Encapsulation  Status        Native vlan
-Fa0/1       auto         n-802.1q       trunking      1
-Fa0/3       on           802.1q         trunking      1
-
-Port        Vlans allowed on trunk
-Fa0/1       1-1005
-Fa0/3       1-1005
-
-Port        Vlans allowed and active in management domain
-Fa0/1       1
-Fa0/3       1
-
-Port        Vlans in spanning tree forwarding state and not pruned
-Fa0/1       none
-Fa0/3       none
+!
+line con 0
+ password cisco
+ login
+!
 ```
-### Добавление VLAN'ов и назначение портов
 
-При попытке добавить VLAN на S1 мы получаем сообщение что VLAN можно добавлять только на сервере VTP домена.
-Добавим на S2 VLAN'ы из условия:
+Зашифруем его командой ``password-encryption``. Теперь эта часть конфига выглядит так:
+
 ```
-S2(config)# vlan 10
-S2(config-vlan)# name Red
-S2(config-vlan)# vlan 20
-S2(config-vlan)# name Blue
-S2(config-vlan)# vlan 30
-S2(config-vlan)# name Yellow
-S2(config-vlan)# vlan 99
-S2(config-vlan)# name Management
-S2(config-vlan)# end
+!
+line con 0
+ password 7 0822455D0A16
+ login
+!
 ```
-Проверяем:
+
+При помощи команды ``banner motd`` создадим предупреждение при входе о том что вход воспрещён неавтризованным пользователям. Выставим время на устройстве: ``clock set 14:12:00 9 jul 2020``. Сохраним наши настройки на всех устройствах командой ``copy running-config startup-config``
+
+Настроим VLAN'ы и SVI на коммутаторе S1 согласно условиям. Назначим на порты VLAN'ы.
+
+```
+S1#conf t
+S1(config)#vlan 3
+S1(config-vlan)#name Management
+S1(config-vlan)#vlan 4
+S1(config-vlan)#name Operations
+S1(config-vlan)#vlan 7
+S1(config-vlan)#name ParkingLot
+S1(config-vlan)#exit
+S1(config)#int vlan 3
+S1(config-if)#ip address 192.168.3.12 255.255.255.0
+
+%LINK-5-CHANGED: Interface Vlan3, changed state to up
+
+S1(config-if)#exit
+S1(config)#ip default-gateway 192.168.3.1
+S1(config)#int f0/6
+S1(config-if)#switchport mode access 
+S1(config-if)#switchport access vlan 3
+
+%LINEPROTO-5-UPDOWN: Line protocol on Interface Vlan3, changed state to up
+
+S1(config-if)#exit
+S1(config)#interface range f0/2-4, f0/7-24, g0/1-2
+S1(config-if-range)#switchport access vlan 7
+S2(config-if-range)#shutdown
+```
+
+Аналогичным образом настраиваем S2
+
+```
+Switch#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+Switch(config)#hostname S2
+S2(config)#vlan 3
+S2(config-vlan)#name Management
+S2(config-vlan)#vlan 4
+S2(config-vlan)#name Operations
+S2(config-vlan)#vlan 7
+S2(config-vlan)#name ParkingLot
+S2(config-vlan)#exit
+S2(config)#int vlan 3
+
+%LINK-5-CHANGED: Interface Vlan3, changed state to up
+
+S2(config-if)#ip address 192.168.3.12 255.255.255.0
+S2(config-if)#exit
+S2(config)#ip default-gateway 192.168.3.1
+S2(config)#int range f0/2-17, f0/19-24, g0/1-2
+S2(config-if-range)#switchport access vlan 7
+S2(config-if-range)#shutdown
+S2(config-if-range)#exit
+S2(config)#int f0/18
+S2(config-if)#switchport mode access 
+S2(config-if)#switchport access vlan 4
+```
+
+Проверим корректность настроек
+
+```
+S1#show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/1, Fa0/5
+3    Management                       active    Fa0/6
+4    Operations                       active    
+7    ParkingLot                       active    Fa0/2, Fa0/3, Fa0/4, Fa0/7
+                                                Fa0/8, Fa0/9, Fa0/10, Fa0/11
+                                                Fa0/12, Fa0/13, Fa0/14, Fa0/15
+                                                Fa0/16, Fa0/17, Fa0/18, Fa0/19
+                                                Fa0/20, Fa0/21, Fa0/22, Fa0/23
+                                                Fa0/24, Gig0/1, Gig0/2
+1002 fddi-default                     active    
+1003 token-ring-default               active    
+1004 fddinet-default                  active    
+1005 trnet-default                    active
+```
+
 ```
 S2#show vlan brief
 
 VLAN Name                             Status    Ports
 ---- -------------------------------- --------- -------------------------------
-1    default                          active    Fa0/2, Fa0/4, Fa0/5, Fa0/6
-                                                Fa0/7, Fa0/8, Fa0/9, Fa0/10
-                                                Fa0/11, Fa0/12, Fa0/13, Fa0/14
-                                                Fa0/15, Fa0/16, Fa0/17, Fa0/19
-                                                Fa0/20, Fa0/21, Fa0/22, Fa0/23
-                                                Fa0/24, Gig0/1, Gig0/2
-10   Red                              active
-20   Blue                             active    Fa0/18
-30   Yellow                           active
-99   Managment                        active
-1002 fddi-default                     active
-1003 token-ring-default               active
-1004 fddinet-default                  active
-1005 trnet-default                    active
-
-S1>show vlan brief
-
-VLAN Name                             Status    Ports
----- -------------------------------- --------- -------------------------------
-1    default                          active    Fa0/2, Fa0/4, Fa0/5, Fa0/7
-                                                Fa0/8, Fa0/9, Fa0/10, Fa0/11
-                                                Fa0/12, Fa0/13, Fa0/14, Fa0/15
-                                                Fa0/16, Fa0/17, Fa0/18, Fa0/19
-                                                Fa0/20, Fa0/21, Fa0/22, Fa0/23
-                                                Fa0/24, Gig0/1, Gig0/2
-10   Red                              active    Fa0/6
-20   Blue                             active
-30   Yellow                           active
-99   Managment                        active
-1002 fddi-default                     active
-1003 token-ring-default               active
-1004 fddinet-default                  active
-1005 trnet-default                    active
-
-S3>show vlan brief
-
-VLAN Name                             Status    Ports
----- -------------------------------- --------- -------------------------------
-1    default                          active    Fa0/2, Fa0/4, Fa0/5, Fa0/7
-                                                Fa0/8, Fa0/9, Fa0/10, Fa0/11
-                                                Fa0/12, Fa0/13, Fa0/14, Fa0/15
-                                                Fa0/16, Fa0/17, Fa0/19, Fa0/20
-                                                Fa0/21, Fa0/22, Fa0/23, Fa0/24
-                                                Gig0/1, Gig0/2
-10   Red                              active    Fa0/6, Fa0/18
-20   Blue                             active
-30   Yellow                           active
-99   Managment                        active
-1002 fddi-default                     active
-1003 token-ring-default               active
-1004 fddinet-default                  active
-1005 trnet-default                    active
+1    default                          active    Fa0/1
+3    Management                       active    
+4    Operations                       active    Fa0/18
+7    ParkingLot                       active    Fa0/2, Fa0/3, Fa0/4, Fa0/5
+                                                Fa0/6, Fa0/7, Fa0/8, Fa0/9
+                                                Fa0/10, Fa0/11, Fa0/12, Fa0/13
+                                                Fa0/14, Fa0/15, Fa0/16, Fa0/17
+                                                Fa0/19, Fa0/20, Fa0/21, Fa0/22
+                                                Fa0/23, Fa0/24, Gig0/1, Gig0/2
+1002 fddi-default                     active    
+1003 token-ring-default               active    
+1004 fddinet-default                  active    
+1005 trnet-default                    active  
 ```
 
-### Назначение портов сетям VLAN и настройка IP-адресов на коммутаторах
-На коммутаторе S1 переведем порт F0/6 в режим доступа и назначим его сети VLAN 10. Настроим IP-адрес на интерфейсе SVI для VLAN 99 на коммутаторах в соответствии с условиями. На коммутаторах S2 и S3 повторим данную процедуру для порта F0/18
+На данный момент всё соответствует условиям.
+
+### Настроим  транк между коммутаторами
+
+Переведём интерфейс Fa0/1 на обоих коммутаторах в режим транка и укажем на нём 8 VLAN в качесте native VLAN. Также укажем номера VLAN'ов, которым можно проходить через данный интерфейс.
+
 ```
-S1(config)# interface f0/6  
-S1(config-if)# switchport mode access  
-S1(config-if)# switchport access vlan 10
-S1(config-if)# exit
-S1(config)# interface vlan 99
-S1(config-if)# ip address 192.168.99.1 255.255.255.0
-S1(config-fi)# no shutdown
-
-S2(config)# interface f0/18
-S2(config-if)# switchport mode access
-S2(config-if)# switchport access vlan 20
-S2(config-if)# exit
-S2(config)# interface vlan 99
-S2(config-if)# ip address 192.168.99.2 255.255.255.0
-S2(config-fi)# no shutdown
-
-S3(config)# interface f0/18
-S3(config-if)# switchport mode access
-S3(config-if)# switchport access vlan 10
-S3(config-if)# exit
-S3(config)# interface vlan 99
-S3(config-if)# ip address 192.168.99.3 255.255.255.0
-S3(config-fi)# no shutdown
+S1(config)#int f0/1
+S1(config-if)#switchport mode trunk 
+S1(config-if)#switchport trunk native vlan 8
+S1(config-if)#switchport trunk allowed vlan 3,4,8
 ```
-Проверка наличия сквозного соединения
-Отправим ping-запрос с PC-B на PC-A:
+
 ```
-C:\>ping 192.168.10.1
+S2(config)#int fa0/1
 
-Pinging 192.168.10.1 with 32 bytes of data:
+%LINEPROTO-5-UPDOWN: Line protocol on Interface FastEthernet0/1, changed state to down
 
-Request timed out.
-Request timed out.
-Request timed out.
-Request timed out.
+%LINEPROTO-5-UPDOWN: Line protocol on Interface FastEthernet0/1, changed state to up
 
-Ping statistics for 192.168.10.1:
-    Packets: Sent = 4, Received = 0, Lost = 4 (100% loss),
+S2(config-if)#switchport mode trunk
+S2(config-if)#switchport trunk native vlan 8
+S1(config-if)#switchport trunk allowed vlan 3,4,8
 ```
-Ответ на echo-запросы мы не получим, т. к. данные ПК находятся в разных VLAN и могут обмениваться трафиком только через L3.
 
-Отправим ping-запрос с PC-A на PC-C
+Проверим настройки наших транков на обоих коммутаторах.
+
 ```
-C:\>ping 192.168.10.2
+S1#show interfaces trunk
+Port        Mode         Encapsulation  Status        Native vlan
+Fa0/1       on           802.1q         trunking      8
 
-Pinging 192.168.10.2 with 32 bytes of data:
+Port        Vlans allowed on trunk
+Fa0/1       3-4,8
 
-Reply from 192.168.10.2: bytes=32 time=20ms TTL=128
-Reply from 192.168.10.2: bytes=32 time=1ms TTL=128
-Reply from 192.168.10.2: bytes=32 time=1ms TTL=128
-Reply from 192.168.10.2: bytes=32 time<1ms TTL=128
+Port        Vlans allowed and active in management domain
+Fa0/1       3,4
 
-Ping statistics for 192.168.10.2:
+Port        Vlans in spanning tree forwarding state and not pruned
+Fa0/1       3,4
+```
+
+```
+S2#show interfaces trunk
+Port        Mode         Encapsulation  Status        Native vlan
+Fa0/1       on           802.1q         trunking      8
+
+Port        Vlans allowed on trunk
+Fa0/1       3-4,8
+
+Port        Vlans allowed and active in management domain
+Fa0/1       3,4
+
+Port        Vlans in spanning tree forwarding state and not pruned
+Fa0/1       3,4
+```
+
+Переведём Fa0/5 на S1 в режиме транка и разрешим проходить через него тем же VLAN'ам.
+
+```
+S1(config)#int f0/5
+S1(config-if)#switchport mode trunk
+S1(config-if)#switchport trunk allowed vlan 3,4,8
+S1(config-if)#switchport trunk native vlan 8
+```
+
+Fa0/5 не появился в списке портов выводимых командой ``show interfaces trunk``, т. к. интерфейс отключен со стороны маршрутизатора R1 и находится в состоянии down.
+
+### Настроим маршрутизацию между VLAN'ами в нашей сети
+
+Настроим наш маршрутизатор:
+
+```
+Router#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+Router(config)#hostname R1
+R1(config)#int G0/0/1
+R1(config-if)#no shutdown
+
+%LINK-5-CHANGED: Interface GigabitEthernet0/0/1, changed state to up
+
+%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/1, changed state to up
+	
+R1(config-if)#exit
+R1(config)#int G0/0/1.3
+
+%LINK-5-CHANGED: Interface GigabitEthernet0/0/1.3, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/1.3, changed state to up
+
+R1(config-subif)#encapsulation ?
+  dot1Q  IEEE 802.1Q Virtual LAN
+R1(config-subif)#encapsulation dot1Q 3
+R1(config-subif)#ip address 192.168.3.1 255.255.255.0
+R1(config-subif)#int G0/0/1.4
+
+%LINK-5-CHANGED: Interface GigabitEthernet0/0/1.4, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/1.4, changed state to up
+
+R1(config-subif)#encapsulation dot1Q 4
+R1(config-subif)#ip address 192.168.4.1 255.255.255.0
+R1(config-subif)#int G0/0/1.8
+
+%LINK-5-CHANGED: Interface GigabitEthernet0/0/1.8, changed state to up
+%LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/1.8, changed state to up
+
+R1(config-subif)#encapsulation dot1Q 8
+```
+
+Проверим настройки
+
+```
+R1#show ip interface brief 
+
+Interface              IP-Address      OK? Method Status                Protocol 
+GigabitEthernet0/0/0   unassigned      YES unset  administratively down down 
+GigabitEthernet0/0/1   unassigned      YES unset  up                    up 
+GigabitEthernet0/0/1.3 192.168.3.1     YES manual up                    up 
+GigabitEthernet0/0/1.4 192.168.4.1     YES manual up                    up 
+GigabitEthernet0/0/1.8 unassigned      YES unset  up                    up 
+Vlan1                  unassigned      YES unset  administratively down down
+```
+
+### Удостоверимся что маршрутизация между VLAN'ами работает
+
+С PC-A до шлюза на R1
+
+```
+C:\>ping 192.168.3.1
+
+Pinging 192.168.3.1 with 32 bytes of data:
+
+Reply from 192.168.3.1: bytes=32 time=1ms TTL=255
+Reply from 192.168.3.1: bytes=32 time<1ms TTL=255
+Reply from 192.168.3.1: bytes=32 time<1ms TTL=255
+Reply from 192.168.3.1: bytes=32 time<1ms TTL=255
+
+Ping statistics for 192.168.3.1:
     Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),
 Approximate round trip times in milli-seconds:
-    Minimum = 0ms, Maximum = 20ms, Average = 5ms
-```
-Мы получаем ответы на echo-запросы, т. к. оба ПК находятся в одном VLAN 10.
-
-Пинг с коммутатора S1 на компьютер PC-A
-```
-S1>ping 192.168.10.1
-
-Type escape sequence to abort.
-Sending 5, 100-byte ICMP Echos to 192.168.10.1, timeout is 2 seconds:
-.....
-Success rate is 0 percent (0/5)
-```
-Ответ мы не получим, т. к. на интерфейсе к которому подключен ПК не настроен IP-адрес (Я считаю что поэтому. Ведь в echo-request должен быть Source IP чтобы понять куда отправлять echo-reply)
-
-Отправка ping-запрос с коммутатора S2 на коммутатор S1
-```
-Type escape sequence to abort.
-Sending 5, 100-byte ICMP Echos to 192.168.99.1, timeout is 2 seconds:
-!!!!!
-Success rate is 100 percent (5/5), round-trip min/avg/max = 0/0/1 ms
-```
-Проходит успешно, т. к. оба интерфейса находятся в VLAN 99
-
-### Настройка сети VLAN расширенного диапазона
-Переводим VTP коммутатора S1 в режим Transparent и проверям.
-```
-S1#show vtp status
-VTP Version                     : 2
-Configuration Revision          : 0
-Maximum VLANs supported locally : 255
-Number of existing VLANs        : 10
-VTP Operating Mode              : Transparent
-VTP Domain Name                 : CCNA
-VTP Pruning Mode                : Disabled
-VTP V2 Mode                     : Disabled
-VTP Traps Generation            : Disabled
-MD5 digest                      : 0x2C 0x37 0x65 0x0B 0x17 0x6F 0x80 0xED
-Configuration last modified by 0.0.0.0 at 3-1-93 00:57:10
+    Minimum = 0ms, Maximum = 1ms, Average = 0ms
 ```
 
-Добавим сеть VLAN из расширенного диапазона и проверим
-```
-S1# show vlan brief
+С PC-A до PC-B
 
-VLAN Name                             Status    Ports
----- -------------------------------- --------- -------------------------------
-1    default                          active    Fa0/2, Fa0/4, Fa0/5, Fa0/7
-                                                Fa0/8, Fa0/9, Fa0/10, Fa0/11
-                                                Fa0/12, Fa0/13, Fa0/14, Fa0/15
-                                                Fa0/16, Fa0/17, Fa0/18, Fa0/19
-                                                Fa0/20, Fa0/21, Fa0/22, Fa0/23
-                                                Fa0/24, Gig0/1, Gig0/2
-10   Red                              active    Fa0/6
-20   Blue                             active
-30   Yellow                           active
-99   Managment                        active
-1002 fddi-default                     active
-1003 token-ring-default               active
-1004 fddinet-default                  active
-1005 trnet-default                    active
-2000 VLAN2000                         active
 ```
-Как видим VLAN успешно добавлен.
+C:\>ping 192.168.4.3
 
-### Ответы на вопросы
-Каковы преимущества и недостатки использования VTP?  
-К преимуществам можно отности сегментирование сети на уровне ПО, большая степень административного контроля, уменьшение полосы пропускания, снижение затрат на оборудование. Снижение нагрузки на оборудование из-за сигментирования широковещательных штормов.  
-К недостаткам можно отнести проприетарность технологии (необходмо оборудование поддерживающих технологию вендоров). При добавлении в сеть нового устройства всегда необходимо учитывать существующую конфигурацию VTP, чтобы случайно не затереть её (в следствии более высокой версии ревизии, коммутатор может стать сервером в домене VTP и затереть существующие в нём VLAN'ы). Ограниченность в 1005 VLAN'ов в основном диапазоне. Потребности корпоративных сетей могут выходить за этот предел, а для поддержки расширенного диапазона нужны будут более современные устройства.  
+Pinging 192.168.4.3 with 32 bytes of data:
+
+Request timed out.
+Reply from 192.168.4.3: bytes=32 time<1ms TTL=127
+Reply from 192.168.4.3: bytes=32 time<1ms TTL=127
+Reply from 192.168.4.3: bytes=32 time<1ms TTL=127
+
+Ping statistics for 192.168.4.3:
+    Packets: Sent = 4, Received = 3, Lost = 1 (25% loss),
+Approximate round trip times in milli-seconds:
+    Minimum = 0ms, Maximum = 0ms, Average = 0ms
+```
+
+С PC-A до S2
+
+```
+C:\>ping 192.168.3.12
+
+Pinging 192.168.3.12 with 32 bytes of data:
+
+Request timed out.
+Reply from 192.168.3.12: bytes=32 time<1ms TTL=255
+Reply from 192.168.3.12: bytes=32 time<1ms TTL=255
+Reply from 192.168.3.12: bytes=32 time<1ms TTL=255
+
+Ping statistics for 192.168.3.12:
+    Packets: Sent = 4, Received = 3, Lost = 1 (25% loss),
+Approximate round trip times in milli-seconds:
+    Minimum = 0ms, Maximum = 0ms, Average = 0ms
+```
+
+Выполним трассировку с PC-B до PC-A
+
+```
+C:\>tracert 192.168.3.3
+
+Tracing route to 192.168.3.3 over a maximum of 30 hops: 
+
+  1   0 ms      0 ms      0 ms      192.168.4.1
+  2   0 ms      0 ms      0 ms      192.168.3.3
+
+Trace complete.
+```
+
+Видим что всё работает корректно, сначала пакет уходит на шлюз по умолчанию, перенаправляется в другой VLAN и доходит до PC-A.
 
 ### Лабораторная работа выполнена с использованием Cisco Paket Tracer 7.3.0
 
-1. [Лабораторная работа по теме "Масштабирование сетей VLAN"](1.vtp_dtp.pkt).
+1. [Лабораторная работа по теме "Configure Router-on-a-Stick Inter-VLAN Routing"](1.vtp_dtp.pkt).
 
